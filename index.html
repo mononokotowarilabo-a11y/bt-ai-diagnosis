@@ -346,6 +346,7 @@
     const audioFiles = {
       start: new Audio(AUDIO + "bgm_start.mp3"),
       result: new Audio(AUDIO + "bgm_result.mp3"),
+      ending: new Audio(AUDIO + "bgm_ending.mp3"),
       select: new Audio(AUDIO + "se_select.mp3")
     };
 
@@ -356,6 +357,7 @@
 
     audioFiles.start.loop = true;
     audioFiles.result.loop = false;
+    audioFiles.ending.loop = true;
     audioFiles.select.loop = false;
 
     audioFiles.select.volume = 0.62;
@@ -488,16 +490,33 @@
           ${imgTag("title_main_clean.png", "BT式！AI活用レベル診断")}
         </section>
         <div class="actions">
-          ${imageButton("button_start.png", "診断スタート", "showGuide()")}
+          ${imageButton("button_start.png", "診断スタート", "showIntroManga()")}
         </div>
       `;
+    }
+
+
+    function showIntroManga() {
+      playBgm("start");
+      app.innerHTML = `
+        <section class="visual main-visual">
+          ${imgTag("manga_intro_hirano_01.png", "平野さんの想い 導入マンガ")}
+        </section>
+        <div class="nav-row">
+          <button class="nav-button" type="button" onclick="showStart()">← 戻る</button>
+          <button class="nav-button" type="button" onclick="showGuide()">次へ →</button>
+        </div>
+      `;
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function showGuide() {
       playBgm("start");
       app.innerHTML = `
         <section class="visual main-visual">
-          ${imgTag("guide_intro_clean.png", "診断のながれ")}
+          ${imgTag("guide_intro_clean.png",
+        "manga_intro_hirano_01.png",
+        "manga_outro_hirano_01.png", "診断のながれ")}
         </section>
         <div class="nav-row">
           <button class="nav-button" type="button" onclick="showStart()">← 戻る</button>
@@ -601,13 +620,38 @@
         </section>
         <div class="actions">
           ${imageButton("button_save_card.png", "結果画像を保存", "downloadShareCard()")}
-          ${imageButton("button_copy_share_text.png", "シェア文をコピー", "copyShareText()")}
+          ${imageButton("button_copy_share_text.png",
+        "button_read_hirano_message.png", "シェア文をコピー", "copyShareText()")}
+          ${imageButton("button_read_hirano_message.png", "平野さんの想いを読む", "showOutroManga()")}
           ${imageButton("button_retry.png", "もう一度診断", "showStart()")}
         </div>
         <p class="tiny-note">
-          保存したトレカ画像をフォローLINEグループに投稿してみよう！<br>
-          スマホで保存できない場合は、画像を長押しして保存してください。
+          結果画像を保存したら、フォローLINEグループでシェアしてみよう！
         </p>
+      `;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+
+    function goBackToLastQuestion() {
+      currentQuestion = questions.length - 1;
+      const prevScore = selectedScores[currentQuestion] || 0;
+      totalScore -= prevScore;
+      selectedScores[currentQuestion] = undefined;
+      latestResult = null;
+      showQuestion();
+    }
+
+    function showOutroManga() {
+      playBgm("ending");
+      app.innerHTML = `
+        <section class="visual main-visual">
+          ${imgTag("manga_outro_hirano_01.png", "平野さんの想い 診断後マンガ")}
+        </section>
+        <div class="nav-row">
+          <button class="nav-button" type="button" onclick="showResult()">← 結果に戻る</button>
+          <button class="nav-button" type="button" onclick="showStart()">もう一度診断</button>
+        </div>
       `;
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -713,34 +757,58 @@
       const next = audioFiles[name];
       if (!next) return;
 
-      // 結果BGMはループせず、結果画面に入るたびに最初から1回だけ鳴らす
+      // 結果BGMは「1回だけ」。結果画面に入るときだけ start から切り替える。
       if (name === "result") {
-        if (currentBgm && currentBgm !== next) {
+        if (currentBgm !== next) {
+          if (currentBgm) {
+            try {
+              currentBgm.pause();
+              currentBgm.currentTime = 0;
+            } catch (e) {}
+          }
+          currentBgm = next;
+          currentBgm.loop = false;
+          currentBgm.volume = 0.42;
+          try { currentBgm.currentTime = 0; } catch (e) {}
+          safePlay(currentBgm);
+        }
+        return;
+      }
+
+      // 平野さんの想いマンガ用。あたたかいエンディングBGMをループ。
+      if (name === "ending") {
+        if (currentBgm === next) return;
+
+        if (currentBgm) {
           try {
             currentBgm.pause();
             currentBgm.currentTime = 0;
           } catch (e) {}
         }
+
         currentBgm = next;
-        currentBgm.loop = false;
-        currentBgm.volume = 0.42;
-        try { currentBgm.currentTime = 0; } catch (e) {}
+        currentBgm.loop = true;
+        currentBgm.volume = 0.36;
         safePlay(currentBgm);
         return;
       }
 
-      if (currentBgm === next) return;
+      // スタート〜導入マンガ〜質問中は bgm_start.mp3 をそのまま流し続ける
+      if (name === "start") {
+        if (currentBgm === next) return;
 
-      if (currentBgm) {
-        try {
-          currentBgm.pause();
-          currentBgm.currentTime = 0;
-        } catch (e) {}
+        if (currentBgm) {
+          try {
+            currentBgm.pause();
+            currentBgm.currentTime = 0;
+          } catch (e) {}
+        }
+
+        currentBgm = next;
+        currentBgm.loop = true;
+        currentBgm.volume = 0.38;
+        safePlay(currentBgm);
       }
-
-      currentBgm = next;
-      currentBgm.volume = 0.38;
-      safePlay(currentBgm);
     }
 
     function playSe(name) {
@@ -754,12 +822,15 @@
       const imageNames = [
         "title_main_clean.png",
         "guide_intro_clean.png",
+        "manga_intro_hirano_01.png",
+        "manga_outro_hirano_01.png",
         "loading.png",
         "button_start.png",
         "button_next.png",
         "button_retry.png",
         "button_save_card.png",
         "button_copy_share_text.png",
+        "button_read_hirano_message.png",
         ...questions.map(q => q.image),
         ...["a", "b", "c", "d"].flatMap(k => [`choice_${k}_default.png`, `choice_${k}_selected.png`]),
         ...results.flatMap(r => [r.resultImage, r.shareCard]),
